@@ -46,12 +46,15 @@ function section(title, sub, icon, accent, body) {
 const notice = (msg, bg = C.skyT) => `<div style="background:${bg};border-radius:10px;padding:12px 14px;font-size:13px;color:#000;line-height:1.45;">${msg}</div>`;
 
 function tiles(items) {
-  const cells = items.map((t, i) => `<td width="${Math.floor(100 / items.length)}%" valign="top" style="${FONT}${i ? 'padding-left:10px;' : ''}">
-    ${tbl(`border:1px solid ${C.line};border-radius:12px;border-collapse:separate;`, `<tr><td style="height:4px;line-height:4px;font-size:0;background:${t.color};border-radius:12px 12px 0 0;">&nbsp;</td></tr>
-    <tr>${td('padding:11px 14px 13px;', `<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:${C.muted};font-weight:600;">${esc(t.label)}</div>
+  const n = items.length;
+  const gap = 10;
+  const cells = items.map((t) => `<td width="${Math.floor((100 - 1.5 * (n - 1)) / n)}%" valign="top" style="${FONT}vertical-align:top;padding:0;">
+    ${tbl(`border:1px solid ${C.line};border-radius:12px;border-collapse:separate;table-layout:fixed;`, `<tr><td height="4" style="height:4px;line-height:4px;font-size:0;background:${t.color};border-radius:11px 11px 0 0;padding:0;">&nbsp;</td></tr>
+    <tr>${td('padding:11px 14px 13px;vertical-align:top;', `<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:${C.muted};font-weight:600;line-height:1.3;">${esc(t.label)}</div>
       <div style="font-size:27px;font-weight:700;line-height:1.15;margin-top:4px;color:#000;">${t.value}</div>
-      <div style="font-size:11.5px;color:${C.muted};margin-top:2px;">${t.sub || '&nbsp;'}</div>`)}</tr>`)}</td>`).join('');
-  return tbl('', `<tr>${cells}</tr>`);
+      <div style="font-size:11.5px;color:${C.muted};margin-top:2px;line-height:1.3;">${t.sub || '&nbsp;'}</div>`)}</tr>`)}</td>`);
+  const spacer = `<td width="${gap}" style="width:${gap}px;padding:0;font-size:0;line-height:0;">&nbsp;</td>`;
+  return tbl('table-layout:fixed;', `<tr valign="top" style="vertical-align:top;">${cells.join(spacer)}</tr>`);
 }
 
 const th = (txt, align = 'center', extra = '') => td(`padding:7px 8px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:${C.muted};font-weight:600;text-align:${align};border-bottom:1.5px solid #000;${extra}`, txt);
