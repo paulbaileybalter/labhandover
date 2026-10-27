@@ -1,0 +1,16 @@
+{
+  "name": "balter-lab-handover",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Balter Brewing - Daily Lab Handover site (Cloudflare Pages + Functions + KV)",
+  "scripts": {
+    "dev": "wrangler pages dev public --kv HANDOVER_KV --port 8788",
+    "test:kpi": "node test/kpi.test.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^3.114.0",
+    "xlsx": "0.18.5",
+    "@fontsource-variable/lexend": "^5.1.0"
+  },
+  "type": "module"
+}
