@@ -45,7 +45,27 @@ function section(title, sub, icon, accent, body) {
 
 const notice = (msg, bg = C.skyT) => `<div style="background:${bg};border-radius:10px;padding:12px 14px;font-size:13px;color:#000;line-height:1.45;">${msg}</div>`;
 
-function tiles(items) {
+// Email version: the tile row is drawn as one picture, so every email program shows it identically.
+function tilesSvg(items) {
+  const W = 700, H = 100, gap = 10, n = items.length, w = (W - gap * (n - 1)) / n;
+  const F = `font-family="Lexend,'Segoe UI',Arial,sans-serif"`;
+  let g = '';
+  items.forEach((t, i) => {
+    const x = i * (w + gap), id = `tc${i}${Math.random().toString(36).slice(2, 6)}`;
+    const value = String(t.value).replace(/<[^>]+>/g, '');
+    const sub = String(t.sub || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, '');
+    g += `<defs><clipPath id="${id}"><rect x="${x + 0.5}" y="0.5" width="${w - 1}" height="${H - 1}" rx="12"/></clipPath></defs>
+      <rect x="${x + 0.5}" y="0.5" width="${w - 1}" height="${H - 1}" rx="12" fill="#fff" stroke="${C.line}"/>
+      <rect x="${x}" y="0" width="${w}" height="4" fill="${t.color}" clip-path="url(#${id})"/>
+      <text x="${x + 14}" y="29" font-size="10" font-weight="600" letter-spacing="1.2" fill="${C.muted}" ${F}>${esc(String(t.label).toUpperCase())}</text>
+      <text x="${x + 14}" y="62" font-size="27" font-weight="700" fill="#000" ${F}>${esc(value)}</text>
+      <text x="${x + 14}" y="82" font-size="11.5" fill="${C.muted}" ${F}>${esc(sub)}</text>`;
+  });
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(items.map((t) => `${t.label}: ${String(t.value).replace(/<[^>]+>/g, '')}`).join(', '))}">${g}</svg>`;
+}
+
+function tiles(items, mode) {
+  if (mode === 'email') return tilesSvg(items);
   // One flat cell per tile (no nested tables) so Outlook/Gmail/Apple Mail all line them up.
   const n = items.length, gap = 10;
   const cells = items.map((t) => `<td valign="top" width="${Math.floor((100 - 1.5 * (n - 1)) / n)}%" style="${FONT}vertical-align:top;padding:11px 14px 13px;border:1px solid ${C.line};border-top:4px solid ${t.color};border-radius:12px;background:#ffffff;">
@@ -141,7 +161,7 @@ function runSection(ctx) {
       { label: 'In-spec batches', value: n0(k.ok), sub: 'Fully compliant', color: C.teal },
       { label: 'Deviations flagged', value: n0(k.dev), sub: 'Review / out of spec', color: k.dev ? C.orange : C.sky },
       { label: 'Compliance rate', value: `${n1(k.rate)}%`, sub: `Target ≥ ${k.target.toFixed(1)}%`, color: k.rate >= k.target ? C.teal : C.orange },
-    ]);
+    ], ctx.mode);
     body += '<div style="height:16px;line-height:16px;font-size:0;">&nbsp;</div>';
 
     const skuRows = v.perSku.map((s) => `<tr>${td(`padding:7px 8px;font-size:12.5px;font-weight:700;border-top:1px solid ${C.line};`, esc(s.sku))}
@@ -240,7 +260,7 @@ export function renderReport(ctx) {
         { label: 'Brewing index', value: n1(idx.brewing), sub: 'Brewhouse to BBT', color: C.purple },
         { label: 'Packaging index', value: n1(idx.packaging), sub: 'Cans & kegs', color: C.sky },
         { label: 'Samples in spec', value: idx.sampleTot ? `${Math.round((idx.sampleOk / idx.sampleTot) * 100)}%` : '–', sub: `${n0(idx.sampleOk)} of ${n0(idx.sampleTot)} results`, color: C.teal },
-      ]))}</tr>`
+      ], ctx.mode))}</tr>`
     : `<tr>${td('padding:14px 28px 0;', notice(kpi ? `No physico-chemical measurements are recorded for ${esc(MONTHS_LONG[Number(ym.slice(5)) - 1])} ${ym.slice(0, 4)} yet.` : 'Upload the <b>Physchem KPI Reporting</b> workbook to build the daily index (Upload data).', C.orangeT))}</tr>`;
 
   const kpiSec = idx
