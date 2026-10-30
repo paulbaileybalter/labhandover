@@ -31,17 +31,23 @@ function render() {
   $('notesPanel').hidden = wk; $('runOpts').hidden = wk;
   const chips = [];
   const at = (iso) => (iso ? new Date(iso).toLocaleString('en-AU', { timeZone: 'Australia/Brisbane', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '');
-  chips.push(state.kpi
-    ? `<span class="chip"><i></i><b>KPI data</b> to ${shortDate(state.kpi.maxDate)} · uploaded ${at(state.kpi.uploadedAt)}</span>`
-    : '<span class="chip off"><i></i><b>KPI data</b> not uploaded yet</span>');
   chips.push(state.rc
     ? `<span class="chip"><i></i><b>Run charts</b> ${state.rcManual ? 'from uploaded copy' : 'live from Google Sheets'} · ${at(state.rcAt)}</span>`
     : `<span class="chip warn"><i></i><b>Run charts</b> ${state.rcError ? 'unavailable' : 'loading…'}</span>`);
   const nIso = state.iso?.byDate?.[state.date]?.length || 0;
   chips.push(nIso
-    ? `<span class="chip"><i></i><b>Isolation Register</b> ${nIso} line${nIso === 1 ? '' : 's'} due for release today</span>`
-    : '<span class="chip off"><i></i><b>Isolation Register</b> nothing due for release today</span>');
+    ? `<span class="chip"><i></i><b>Isolation Register</b> ${nIso} line${nIso === 1 ? '' : 's'} due for release ${state.date === brisbaneToday() ? 'today' : 'on ' + shortDate(state.date)}</span>`
+    : `<span class="chip off"><i></i><b>Isolation Register</b> nothing scheduled for release ${state.date === brisbaneToday() ? 'today' : 'on ' + shortDate(state.date)}${state.iso?.uploadedAt ? ` · register uploaded ${at(state.iso.uploadedAt)}` : ' · not uploaded yet'}</span>`);
   $('chips').innerHTML = chips.join('');
+  const bneDay = (t) => new Date(new Date(t).getTime() + 10 * 3600e3).toISOString().slice(0, 10);
+  const tile = (id, stateId, rec, extra) => {
+    const fresh = rec?.uploadedAt && bneDay(rec.uploadedAt) === brisbaneToday();
+    $(id).className = `up-tile ${fresh ? 'ok' : 'warn'}`;
+    $(stateId).textContent = fresh ? `Uploaded today at ${new Date(rec.uploadedAt).toLocaleTimeString('en-AU', { timeZone: 'Australia/Brisbane', hour: 'numeric', minute: '2-digit' })}${extra(rec)}`
+      : rec?.uploadedAt ? `Not uploaded today · last upload ${shortDate(bneDay(rec.uploadedAt))}${extra(rec)}` : 'Not uploaded yet';
+  };
+  tile('tileKpi', 'kpiState', state.kpi, (r) => (r.maxDate ? ` · data to ${shortDate(r.maxDate)}` : ''));
+  tile('tileIso', 'isoState', state.iso, () => '');
   document.title = `${state.view === 'weekly' ? 'Weekly Physchem' : 'Lab Handover'} ${shortDate(state.date)} — Balter Brewing`;
 }
 
@@ -144,7 +150,6 @@ async function handleFile(file) {
       set('busy', 'Saving to the shared store…');
       const r = await jput('/api/kpi', out);
       await loadData();
-      if (!state.kpi.daily[state.date]) await setDate(r.maxDate);
       set('ok', `KPI data saved · ${Object.keys(out.daily).length} days, latest ${shortDate(r.maxDate)}. All devices will pick it up.`);
     } else if (names.includes('Isolation Register')) {
       const wb = XLSX.read(buf, { type: 'array', sheets: ['Isolation Register'], dense: true });
@@ -152,7 +157,8 @@ async function handleFile(file) {
       const r = await jput('/api/iso', out);
       await loadData();
       const n = state.iso.byDate?.[state.date]?.length || 0;
-      set('ok', `Isolation Register saved · ${r.dates} release dates. ${n ? `${n} line${n === 1 ? '' : 's'} due on ${shortDate(state.date)}.` : `Nothing due on ${shortDate(state.date)}.`}`);
+      const near = Object.entries(out.byDate).filter(([d]) => d >= addDays(brisbaneToday(), -3)).sort(([x], [y]) => x.localeCompare(y)).slice(0, 6).map(([d, r]) => `${shortDate(d)} (${r.length})`).join(', ');
+      set('ok', `Isolation Register saved · ${r.dates} release dates. ${n ? `${n} line${n === 1 ? '' : 's'} due on ${shortDate(state.date)}.` : `Nothing scheduled on ${shortDate(state.date)}.`} Upcoming release dates in this file: ${near || 'none'}.`);
     } else if (names.includes('BBT Deviation Log')) {
       const wb = XLSX.read(buf, { type: 'array', dense: true });
       state.rc = parseRunCharts(sheetsFromWorkbook(XLSX, wb)); state.rcManual = true; state.rcError = ''; state.rcAt = new Date().toISOString();
@@ -200,18 +206,19 @@ function init() {
     await Promise.all([loadData(), loadRunCharts(), loadNotes()]).catch(() => {});
     render(); e.target.disabled = false; toast('Refreshed');
   };
-  $('uploadBtn').onclick = () => { $('uploadPanel').open = true; $('uploadPanel').scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+  $('uploadBtn').onclick = () => { $('uploadPanel').scrollIntoView({ behavior: 'smooth', block: 'center' }); };
   $('logoutBtn').onclick = async () => { await api('/api/logout', { method: 'POST' }); location.reload(); };
   $('prepared').addEventListener('input', queueSave);
   $('notesText').addEventListener('input', queueSave);
 
-  const drop = $('drop'), input = $('fileInput');
-  drop.onclick = () => input.click();
-  drop.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), input.click());
-  input.onchange = () => { handleFiles([...input.files]); input.value = ''; };
-  ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
-  ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
-  drop.addEventListener('drop', (e) => handleFiles([...e.dataTransfer.files]));
+  for (const [tileId, inputId] of [['tileKpi', 'kpiInput'], ['tileIso', 'isoInput']]) {
+    const tileEl = $(tileId), input = $(inputId);
+    input.onchange = () => { handleFiles([...input.files]); input.value = ''; };
+    tileEl.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), input.click());
+    ['dragenter', 'dragover'].forEach((ev) => tileEl.addEventListener(ev, (e) => { e.preventDefault(); tileEl.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach((ev) => tileEl.addEventListener(ev, (e) => { e.preventDefault(); tileEl.classList.remove('over'); }));
+    tileEl.addEventListener('drop', (e) => handleFiles([...e.dataTransfer.files]));
+  }
 
   $('emailBtn').onclick = openEmail;
   const close = () => { $('overlay').hidden = true; };
@@ -230,7 +237,7 @@ function init() {
     let hash = location.hash.slice(1);
     if (hash.startsWith('weekly:')) { state.view = 'weekly'; hash = hash.slice(7); }
     const today = brisbaneToday();
-    const start = /^\d{4}-\d{2}-\d{2}$/.test(hash) ? hash : state.kpi?.daily?.[today] ? today : state.kpi?.maxDate && state.kpi.maxDate < today ? state.kpi.maxDate : today;
+    const start = /^\d{4}-\d{2}-\d{2}$/.test(hash) ? hash : today;
     await setDate(start);
     loadRunCharts().then(render);
     setInterval(poll, 20000);

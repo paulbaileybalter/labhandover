@@ -47,17 +47,19 @@
     </div>
   </section>
 
-  <details class="panel" id="uploadPanel">
-    <summary><span class="pill-ico">⬆</span> Upload data <small>Physchem KPI Reporting · Isolation Register · run chart copy</small></summary>
-    <div class="panel-body">
-      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose or drop spreadsheets">
-        <strong>Drop spreadsheets here</strong> or click to choose
-        <span>Physchem KPI Reporting (.xlsx) · Balter Isolation Register (.xlsx, on days a beer is due for release)<br>Optional: a copy of Physchem Run Charts – Trends if the live Google Sheet can’t be reached</span>
-        <input type="file" id="fileInput" multiple accept=".xlsx,.xlsm,.txt,.csv,*/*" hidden>
-      </div>
-      <ul class="uplist" id="uplist"></ul>
-    </div>
-  </details>
+  <section class="uploads" id="uploadPanel" aria-label="Upload data">
+    <label class="up-tile warn" id="tileKpi" tabindex="0">
+      <span class="up-dot" aria-hidden="true"></span>
+      <span class="up-body"><b>Physchem KPI Reporting</b><em id="kpiState">Not uploaded yet</em><small>Upload daily · drop the .xlsx here or click</small></span>
+      <input type="file" id="kpiInput" accept=".xlsx,.xlsm" multiple hidden>
+    </label>
+    <label class="up-tile warn" id="tileIso" tabindex="0">
+      <span class="up-dot" aria-hidden="true"></span>
+      <span class="up-body"><b>Balter Isolation Register</b><em id="isoState">Not uploaded yet</em><small>Upload on days a beer is due for release · drop the .xlsx here or click</small></span>
+      <input type="file" id="isoInput" accept=".xlsx,.xlsm" multiple hidden>
+    </label>
+  </section>
+  <ul class="uplist" id="uplist"></ul>
 
   <section class="panel notes" id="notesPanel" aria-label="Handover notes">
     <div class="notes-head"><h2>Handover notes</h2><span class="saved" id="saved" aria-live="polite"></span></div>
