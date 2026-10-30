@@ -247,13 +247,17 @@ export function renderReport(ctx) {
   const period = `${Number(firstDay.slice(8))}–${Number(date.slice(8))} ${MONTHS_LONG[Number(ym.slice(5)) - 1]} ${ym.slice(0, 4)}`;
   const gen = new Date().toLocaleString('en-AU', { timeZone: 'Australia/Brisbane', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
+  const weekly = ctx.view === 'weekly';
+  const title = weekly ? 'Weekly Physchem' : 'Daily Lab Handover';
+  const dateLine = weekly ? `${esc(longDate(date))}<span style="color:${C.muted};font-weight:400;"> · month to date</span>` : esc(longDate(date));
   const head = `<tr>${td('padding:24px 28px 8px;', tbl('', `<tr>
     <td width="68" valign="middle" style="width:68px;">${LOGO}</td>
     ${td('padding-left:6px;', `<div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:${C.purple};font-weight:600;">Balter Brewing · Quality Lab</div>
-      <div style="font-size:27px;font-weight:700;letter-spacing:-.015em;line-height:1.15;margin-top:4px;color:#000;">Daily Lab Handover</div>
-      <div style="font-size:14px;color:#000;margin-top:5px;font-weight:500;">${esc(longDate(date))}</div>`)}
-    <td width="110" align="right" valign="middle" style="width:110px;">${idx ? glassSvg(idx.plant, { width: 84, animate: ctx.mode !== 'email' }) : ''}</td></tr>`))}</tr>`;
+      <div style="font-size:27px;font-weight:700;letter-spacing:-.015em;line-height:1.15;margin-top:4px;color:#000;">${title}</div>
+      <div style="font-size:14px;color:#000;margin-top:5px;font-weight:500;">${dateLine}</div>`)}
+    <td width="110" align="right" valign="middle" style="width:110px;">${weekly && idx ? glassSvg(idx.plant, { width: 84, animate: ctx.mode !== 'email' }) : ''}</td></tr>`))}</tr>`;
 
+  const noKpi = `<tr>${td('padding:14px 28px 0;', notice(kpi ? `No physico-chemical measurements are recorded for ${esc(MONTHS_LONG[Number(ym.slice(5)) - 1])} ${ym.slice(0, 4)} yet.` : 'Upload the <b>Physchem KPI Reporting</b> workbook to build the index (Upload data).', C.orangeT))}</tr>`;
   const summary = idx
     ? `<tr>${td('padding:14px 28px 0;', tiles([
         { label: 'Plant index', value: n1(idx.plant), sub: 'Month to date', color: C.orange },
@@ -261,17 +265,17 @@ export function renderReport(ctx) {
         { label: 'Packaging index', value: n1(idx.packaging), sub: 'Cans & kegs', color: C.sky },
         { label: 'Samples in spec', value: idx.sampleTot ? `${Math.round((idx.sampleOk / idx.sampleTot) * 100)}%` : '–', sub: `${n0(idx.sampleOk)} of ${n0(idx.sampleTot)} results`, color: C.teal },
       ], ctx.mode))}</tr>`
-    : `<tr>${td('padding:14px 28px 0;', notice(kpi ? `No physico-chemical measurements are recorded for ${esc(MONTHS_LONG[Number(ym.slice(5)) - 1])} ${ym.slice(0, 4)} yet.` : 'Upload the <b>Physchem KPI Reporting</b> workbook to build the daily index (Upload data).', C.orangeT))}</tr>`;
+    : noKpi;
 
-  const kpiSec = idx
-    ? section('Physico-Chemical Index', `Month to date · ${esc(period)} · same figures as the Month tab`, 'kettle', C.orange, physchemTable(idx)) +
-      section('Out-of-spec results', `Measurements outside spec on ${esc(shortDate(date))}`, 'alert', C.orange, failsTable(kpi, date))
-    : '';
+  const indexSec = idx ? section('Physico-Chemical Index', `Month to date · ${esc(period)} · same figures as the Month tab`, 'kettle', C.orange, physchemTable(idx)) : '';
+  const failsSec = kpi ? section('Out-of-spec results', `Measurements outside spec on ${esc(shortDate(date))}`, 'alert', C.orange, failsTable(kpi, date)) : '';
 
   const strip = `<tr><td style="height:6px;line-height:6px;font-size:0;">${tbl('', `<tr>${[C.teal, C.orange, C.purple, C.sky].map((c) => `<td style="height:6px;line-height:6px;font-size:0;background:${c};">&nbsp;</td>`).join('')}</tr>`)}</td></tr>`;
-  const srcs = [kpi?.uploadedAt && `Physchem KPI Reporting (${kpi.fileName || 'uploaded'})`, ctx.rc && 'Physchem Run Charts – Trends (Google Sheets)', ctx.iso?.byDate?.[date]?.length && 'Balter Isolation Register'].filter(Boolean);
-  const foot = `<tr>${td(`padding:26px 28px 22px;font-size:11px;color:${C.muted};line-height:1.6;`, `<div style="border-top:1px solid ${C.line};padding-top:12px;"><b style="color:#000;">Balter Brewing</b> · Daily Lab Handover · generated ${esc(gen)} (AEST)<br>Sources: ${esc(srcs.join(' · ') || 'none loaded yet')}.</div>`)}</tr>`;
+  const srcs = [kpi?.uploadedAt && `Physchem KPI Reporting (${kpi.fileName || 'uploaded'})`, !weekly && ctx.rc && 'Physchem Run Charts – Trends (Google Sheets)', !weekly && ctx.iso?.byDate?.[date]?.length && 'Balter Isolation Register'].filter(Boolean);
+  const foot = `<tr>${td(`padding:26px 28px 22px;font-size:11px;color:${C.muted};line-height:1.6;`, `<div style="border-top:1px solid ${C.line};padding-top:12px;"><b style="color:#000;">Balter Brewing</b> · ${title} · generated ${esc(gen)} (AEST)<br>Sources: ${esc(srcs.join(' · ') || 'none loaded yet')}.</div>`)}</tr>`;
 
-  const inner = strip + head + summary + notesBlock(ctx.notes) + kpiSec + (hasKpi || kpi ? ytdSection(kpi, date) : '') + runSection(ctx) + isoSection(ctx) + foot + strip;
+  const inner = weekly
+    ? strip + head + summary + indexSec + foot + strip
+    : strip + head + notesBlock(ctx.notes) + failsSec + (kpi ? ytdSection(kpi, date) : '') + runSection(ctx) + isoSection(ctx) + foot + strip;
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="${W}" style="border-collapse:separate;width:100%;max-width:${W}px;background:#ffffff;border:1px solid ${C.line};border-radius:16px;${FONT}color:#000;margin:0 auto;">${inner}</table>`;
 }

@@ -4,7 +4,7 @@ import { parseRunCharts, sheetsFromWorkbook, sheetsFromText } from './lib/runcha
 import { buildEmail, copyHtml, downloadHtml } from './lib/email.js';
 
 const $ = (id) => document.getElementById(id);
-const state = { date: null, kpi: null, iso: null, rc: null, rcError: '', rcAt: null, rcManual: false, notes: null, history: 10, kpiAt: null, isoAt: null };
+const state = { view: 'daily', date: null, kpi: null, iso: null, rc: null, rcError: '', rcAt: null, rcManual: false, notes: null, history: 10, kpiAt: null, isoAt: null };
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const addDays = (iso, n) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const brisbaneToday = () => new Date(Date.now() + 10 * 3600e3).toISOString().slice(0, 10); // AEST has no daylight saving
@@ -21,11 +21,14 @@ let toastTimer;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3200); }
 
 // ---------- rendering ----------
-const ctx = () => ({ date: state.date, kpi: state.kpi, iso: state.iso, rc: state.rc, rcError: state.rcError, notes: state.notes, history: state.history, mode: 'web' });
+const ctx = () => ({ date: state.date, kpi: state.kpi, iso: state.iso, rc: state.rc, rcError: state.rcError, notes: state.notes, history: state.history, view: state.view, mode: 'web' });
 function render() {
   if (!state.date) return;
   $('report').innerHTML = renderReport(ctx());
   $('dateInput').value = state.date;
+  const wk = state.view === 'weekly';
+  $('tabDaily').setAttribute('aria-selected', String(!wk)); $('tabWeekly').setAttribute('aria-selected', String(wk));
+  $('notesPanel').hidden = wk; $('runOpts').hidden = wk;
   const chips = [];
   const at = (iso) => (iso ? new Date(iso).toLocaleString('en-AU', { timeZone: 'Australia/Brisbane', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '');
   chips.push(state.kpi
@@ -39,7 +42,7 @@ function render() {
     ? `<span class="chip"><i></i><b>Isolation Register</b> ${nIso} line${nIso === 1 ? '' : 's'} due for release today</span>`
     : '<span class="chip off"><i></i><b>Isolation Register</b> nothing due for release today</span>');
   $('chips').innerHTML = chips.join('');
-  document.title = `Lab Handover ${shortDate(state.date)} — Balter Brewing`;
+  document.title = `${state.view === 'weekly' ? 'Weekly Physchem' : 'Lab Handover'} ${shortDate(state.date)} — Balter Brewing`;
 }
 
 // ---------- data ----------
@@ -86,9 +89,12 @@ function queueSave() {
   }, 700);
 }
 
+const writeHash = () => history.replaceState(null, '', `#${state.view === 'weekly' ? 'weekly:' : ''}${state.date}`);
+function setView(v) { state.view = v; writeHash(); render(); }
+
 async function setDate(d, { push = true } = {}) {
   state.date = d; dirty = false;
-  if (push) history.replaceState(null, '', `#${d}`);
+  if (push) writeHash();
   render();
   await loadNotes().catch(() => {});
   render();
@@ -165,6 +171,7 @@ const handleFiles = async (files) => { for (const f of files) await handleFile(f
 let emailBuild = null;
 async function openEmail() {
   $('overlay').hidden = false;
+  $('mTitle').textContent = state.view === 'weekly' ? 'Email version — Weekly Physchem' : 'Email version — Daily Lab Handover';
   $('emailPreview').innerHTML = '<div class="loading">Building email…</div>';
   try {
     emailBuild = await buildEmail(ctx());
@@ -181,6 +188,8 @@ function init() {
   for (let i = 0; i < 18; i++) { const s = 8 + Math.random() * 28; h += `<span style="left:${Math.random() * 100}%;width:${s}px;height:${s}px;animation-duration:${9 + Math.random() * 11}s;animation-delay:-${Math.random() * 14}s"></span>`; }
   $('bubbles').innerHTML = h;
 
+  $('tabDaily').onclick = () => setView('daily');
+  $('tabWeekly').onclick = () => setView('weekly');
   $('dateInput').addEventListener('change', (e) => e.target.value && setDate(e.target.value));
   $('prevDay').onclick = () => setDate(addDays(state.date, -1));
   $('nextDay').onclick = () => setDate(addDays(state.date, 1));
@@ -218,7 +227,8 @@ function init() {
 
   (async () => {
     try { await loadData(); } catch (e) { $('report').innerHTML = `<div class="loading">Couldn’t load data: ${e.message}</div>`; return; }
-    const hash = location.hash.slice(1);
+    let hash = location.hash.slice(1);
+    if (hash.startsWith('weekly:')) { state.view = 'weekly'; hash = hash.slice(7); }
     const today = brisbaneToday();
     const start = /^\d{4}-\d{2}-\d{2}$/.test(hash) ? hash : state.kpi?.daily?.[today] ? today : state.kpi?.maxDate && state.kpi.maxDate < today ? state.kpi.maxDate : today;
     await setDate(start);

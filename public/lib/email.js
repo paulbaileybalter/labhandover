@@ -56,7 +56,7 @@ export async function buildEmail(ctx) {
   const html = `<div style="background:#ffffff;margin:0;padding:8px 0;font-family:'Lexend','Segoe UI',Arial,sans-serif;">${box.innerHTML}</div>`;
   const d = new Date(`${ctx.date}T00:00:00Z`);
   const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()];
-  return { html, subject: `Lab Handover – ${wd} ${shortDate(ctx.date)}` };
+  return { html, subject: `${ctx.view === 'weekly' ? 'Weekly Physchem' : 'Lab Handover'} – ${wd} ${shortDate(ctx.date)}` };
 }
 
 export async function copyHtml(html, previewEl) {
