@@ -39,6 +39,8 @@ export function extractKpi(XLSX, wb, fileName = '') {
   const cm = grid('Consolidated Measurements');
   const daily = {};
   const failsAll = [];
+  const colourRows = {};   // batch -> number of Colour results
+  const hazeSpec = {};     // SKU -> [lo, hi] from its Haze (turbidity) results
   let maxISO = '';
   for (let i = 1; i < cm.length; i++) {
     const r = cm[i];
@@ -51,6 +53,8 @@ export function extractKpi(XLSX, wb, fileName = '') {
     if (!date) continue;
     if (date > maxISO) maxISO = date;
     const param = r[8];
+    if (sec === 'BBT' && param === 'Colour (EBC)') colourRows[r[4]] = (colourRows[r[4]] || 0) + 1;
+    if (sec === 'BBT' && param === 'BBT Turbidity (EBC)' && typeof r[10] === 'number' && typeof r[11] === 'number') hazeSpec[r[5]] = [r[10], r[11]];
     const keys = [`${sec}|${param}`];
     if (param === 'DO' && r[7] === 'Keg') keys.push(`${sec}|DO|Keg`);
     for (const k of keys) {
@@ -67,7 +71,15 @@ export function extractKpi(XLSX, wb, fileName = '') {
   // Keep failure detail for the last ~120 days only (keeps KV small)
   const cutoff = new Date(new Date(maxISO).getTime() - 120 * 86400e3).toISOString().slice(0, 10);
   const fails = {};
-  for (const [date, ...rest] of failsAll) if (date >= cutoff) (fails[date] ||= []).push(rest);
+  // A Colour "failure" is probably a Haze reading typed into the Colour field when: the batch has another Colour
+  // result, and this number sits inside the SKU's Haze spec. Flag it (8th item) so the report can set it aside.
+  for (const [date, ...rest] of failsAll) {
+    if (date < cutoff) continue;
+    const [k, batch, sku, val] = rest;
+    const hs = hazeSpec[sku];
+    const misfiled = k === 'BBT|Colour (EBC)' && colourRows[batch] > 1 && hs && typeof val === 'number' && val >= hs[0] && val <= hs[1];
+    (fails[date] ||= []).push(misfiled ? [...rest, 1] : rest);
+  }
 
   // --- Micro KPI header (reporting period) + current plant index
   const mk = grid('Micro KPI');

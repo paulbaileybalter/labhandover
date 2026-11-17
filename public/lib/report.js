@@ -103,8 +103,13 @@ function physchemTable(idx) {
 }
 
 function failsTable(kpi, date) {
-  const list = kpi?.fails?.[date] || [];
-  if (!list.length) return notice('No out-of-spec KPI results were recorded on this date.', C.tealT);
+  const all = kpi?.fails?.[date] || [];
+  const list = all.filter((f) => !f[7]);
+  const misfiled = all.filter((f) => f[7]);
+  const misNote = misfiled.length
+    ? `<div style="margin-top:10px;">${notice(`<b>Not counted here – possible Haze readings typed into the Colour field:</b> ${misfiled.map((f) => `${esc(f[1])} ${esc(f[2])} (${esc(trim(Number(f[3])))})`).join(' · ')}.<br><span style="color:${C.muted};font-size:12px;">Each batch already has a proper Colour result, and these numbers fit the Haze spec, not Colour. The Plant Index above still follows the spreadsheet, so it includes them until the source entries are corrected.</span>`, C.paleT)}</div>`
+    : '';
+  if (!list.length) return notice('No out-of-spec KPI results were recorded on this date.', C.tealT) + misNote;
   const label = {};
   for (const st of STAGES) for (const r of st.rows) for (const [sec, p] of r.src) label[`${sec}|${p}`] = { stage: st.title, name: r.label, id: st.id };
   const order = Object.fromEntries(STAGES.map((s, i) => [s.id, i]));
@@ -117,7 +122,7 @@ function failsTable(kpi, date) {
     ${td(`padding:6px 8px;font-size:12px;border-top:1px solid ${C.line};text-align:center;`, `<span style="background:${C.orangeT};border-radius:6px;padding:2px 7px;font-weight:700;">${esc(trim(Number(r.val)))}</span>`)}
     ${td(`padding:6px 8px;font-size:12px;border-top:1px solid ${C.line};text-align:center;color:${C.muted};`, esc(specTxt(r.lo, r.hi)))}</tr>`).join('');
   return tbl(`border:1px solid ${C.line};`, `<tr>${th('Stage', 'left')}${th('Parameter', 'left')}${th('Batch', 'left')}${th('SKU', 'left')}${th('Result')}${th('Spec')}</tr>${body}`) +
-    `<div style="font-size:11px;color:${C.muted};margin-top:6px;">${rows.length} out-of-spec result${rows.length === 1 ? '' : 's'}${rows.length > CAP ? ` (first ${CAP} shown)` : ''}.</div>`;
+    `<div style="font-size:11px;color:${C.muted};margin-top:6px;">${rows.length} out-of-spec result${rows.length === 1 ? '' : 's'}${rows.length > CAP ? ` (first ${CAP} shown)` : ''}.</div>${misNote}`;
 }
 
 function ytdSection(kpi, date) {
@@ -159,23 +164,23 @@ function runSection(ctx) {
     body += tiles([
       { label: 'Total batches', value: n0(k.total), sub: 'BBT results today', color: C.sky },
       { label: 'In-spec batches', value: n0(k.ok), sub: 'Fully compliant', color: C.teal },
-      { label: 'Deviations flagged', value: n0(k.dev), sub: 'Review / out of spec', color: k.dev ? C.orange : C.sky },
+      { label: 'Deviations flagged', value: n0(k.measures), sub: k.dev ? `${n0(k.dev)} batch${k.dev === 1 ? '' : 'es'} out of spec` : 'No batches out of spec', color: k.measures ? C.orange : C.sky },
       { label: 'Compliance rate', value: `${n1(k.rate)}%`, sub: `Target ≥ ${k.target.toFixed(1)}%`, color: k.rate >= k.target ? C.teal : C.orange },
     ], ctx.mode);
     body += '<div style="height:16px;line-height:16px;font-size:0;">&nbsp;</div>';
 
     const skuRows = v.perSku.map((s) => `<tr>${td(`padding:7px 8px;font-size:12.5px;font-weight:700;border-top:1px solid ${C.line};`, esc(s.sku))}
-      ${[s.total, s.ok, s.dev].map((x, i) => td(`text-align:center;font-size:12.5px;border-top:1px solid ${C.line};${i === 2 && x ? `background:${C.orangeT};font-weight:700;` : ''}`, n0(x))).join('')}
+      ${[s.total, s.ok, s.dev, s.measures].map((x, i) => td(`text-align:center;font-size:12.5px;border-top:1px solid ${C.line};${i >= 2 && x ? `background:${C.orangeT};font-weight:700;` : ''}`, n0(x))).join('')}
       ${td(`text-align:center;font-size:12.5px;border-top:1px solid ${C.line};`, `${n1(s.rate)}%`)}
       ${[s.plato, s.color, s.ph, s.bu, s.haze].map((x) => td(`text-align:center;font-size:12.5px;border-top:1px solid ${C.line};color:${x ? '#000' : C.muted};${x ? `font-weight:700;background:${C.orangeT};` : ''}`, x ? n0(x) : '0')).join('')}</tr>`).join('');
     const tot = v.perSku.reduce((a, s) => ({ plato: a.plato + s.plato, color: a.color + s.color, ph: a.ph + s.ph, bu: a.bu + s.bu, haze: a.haze + s.haze }), { plato: 0, color: 0, ph: 0, bu: 0, haze: 0 });
     const totRow = `<tr>${td(`padding:8px;font-size:12.5px;font-weight:700;background:${C.paleT};`, 'Fleet total')}
-      ${[k.total, k.ok, k.dev].map((x) => td(`text-align:center;font-size:12.5px;font-weight:700;background:${C.paleT};`, n0(x))).join('')}
+      ${[k.total, k.ok, k.dev, k.measures].map((x) => td(`text-align:center;font-size:12.5px;font-weight:700;background:${C.paleT};`, n0(x))).join('')}
       ${td(`text-align:center;font-size:12.5px;font-weight:700;background:${C.paleT};`, `${n1(k.rate)}%`)}
       ${[tot.plato, tot.color, tot.ph, tot.bu, tot.haze].map((x) => td(`text-align:center;font-size:12.5px;font-weight:700;background:${C.paleT};`, n0(x))).join('')}</tr>`;
     body += `<div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:${C.purple};margin-bottom:6px;">Per-SKU quality &amp; compliance</div>` +
-      tbl(`border:1px solid ${C.line};`, `<tr>${th('SKU', 'left')}${th('Batches')}${th('In spec')}${th('Deviations')}${th('Compliance')}${th('Plato')}${th('Colour')}${th('pH')}${th('BU')}${th('Haze')}</tr>${skuRows}${totRow}`) +
-      `<div style="font-size:10.5px;color:${C.muted};margin:6px 0 16px;">Right-hand columns count batches outside spec for each measure.</div>`;
+      tbl(`border:1px solid ${C.line};`, `<tr>${th('SKU', 'left')}${th('Batches')}${th('In spec')}${th('Batches out')}${th('Deviations')}${th('Compliance')}${th('Plato')}${th('Colour')}${th('pH')}${th('BU')}${th('Haze')}</tr>${skuRows}${totRow}`) +
+      `<div style="font-size:10.5px;color:${C.muted};margin:6px 0 16px;">“Batches out” = batches with any result outside spec. “Deviations” = every individual result outside spec (a batch can have several); the columns to the right split them by measure.</div>`;
 
     const bbtRows = v.rows.map((r) => {
       const good = v.inSpec(r);

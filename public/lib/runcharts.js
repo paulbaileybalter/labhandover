@@ -159,7 +159,7 @@ export function dayView(rc, date, { history = 10 } = {}) {
     const good = rs.filter(inSpec).length;
     const d = rs.map(devOf);
     const n = (k) => d.filter((x) => x[k]).length;
-    return { sku, total: rs.length, ok: good, dev: rs.length - good, rate: (good / rs.length) * 100, plato: n('plato'), color: n('color'), ph: n('ph'), bu: n('bu'), haze: n('haze') };
+    return { sku, total: rs.length, ok: good, dev: rs.length - good, measures: d.reduce((a, x) => a + Object.values(x).filter(Boolean).length, 0), rate: (good / rs.length) * 100, plato: n('plato'), color: n('color'), ph: n('ph'), bu: n('bu'), haze: n('haze') };
   });
   const todays = new Set(rows.map((r) => r.batch));
   const charts = skus.map((sku) => {
@@ -177,6 +177,6 @@ export function dayView(rc, date, { history = 10 } = {}) {
   const ff = rc.ff.filter((r) => r.date === date && (r.gravity != null || r.abv != null)).sort((a, b) => a.sku.localeCompare(b.sku) || a.batch.localeCompare(b.batch));
   return {
     rows, perSku, charts, ff, devOf, inSpec,
-    kpi: { total, ok, dev: total - ok, rate: total ? (ok / total) * 100 : null, target: rc.target },
+    kpi: { total, ok, dev: total - ok, measures: rows.reduce((a, r) => a + Object.values(devOf(r)).filter(Boolean).length, 0), rate: total ? (ok / total) * 100 : null, target: rc.target },
   };
 }
